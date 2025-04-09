@@ -27,7 +27,7 @@ func FindStudent(students []Student, name string) (Student, bool) {
 
 func ListStudents(students []Student) {
 	for _, student := range students {
-		fmt.Printf("Name: %s, Age: %d, Grade: %s\n", student.Name, student.Age, student.Grade)
+		fmt.Printf("Name: %s, Age: %d, Grade: %s\n.", student.Name, student.Age, student.Grade)
 	}
 }
 
