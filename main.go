@@ -1,18 +1,37 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"time"
+	"net/http"
 )
 
-func countTo(n int) {
-	for i := 1; i < n+1; i++ {
-		fmt.Printf("%d\n", i)
+type User struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+func handlePost(w http.ResponseWriter, r *http.Request) {
+	// Check that the method is POST
+	if r.Method != "POST" {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
 	}
+
+	// Decode the JSON body
+	var user User
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&user)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Respond with the user data
+	fmt.Fprintf(w, "Received user: Name: %s, Email: %s", user.Name, user.Email)
 }
 
 func main() {
-	fmt.Println("Main function is running")
-	go countTo(5)
-	time.Sleep(3 * time.Second)
+	http.HandleFunc("/register", handlePost)
+	http.ListenAndServe(":8080", nil)
 }
