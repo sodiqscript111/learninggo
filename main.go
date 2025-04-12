@@ -2,36 +2,48 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
-type User struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+type Task struct {
+	ID      int    `json:"id"`
+	Title   string `json:"title"`
+	Details string `json:"details"`
 }
 
-func handlePost(w http.ResponseWriter, r *http.Request) {
-	// Check that the method is POST
+var tasks = []Task{}
+var nextID = 1
+
+func handleTask(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
+		http.Error(w, "Post only", http.StatusMethodNotAllowed)
 	}
 
-	// Decode the JSON body
-	var user User
+	var task Task
+	task.ID = nextID
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&user)
+	err := decoder.Decode(&task)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
 	}
+	tasks = append(tasks, task)
 
-	// Respond with the user data
-	fmt.Fprintf(w, "Received user: Name: %s, Email: %s", user.Name, user.Email)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	err = json.NewEncoder(w).Encode(task)
 }
 
+func handelGet(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Get only", http.StatusMethodNotAllowed)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
+}
 func main() {
-	http.HandleFunc("/register", handlePost)
+
+	http.HandleFunc("/", handleTask)
+	http.HandleFunc("/get", handelGet)
 	http.ListenAndServe(":8080", nil)
 }
