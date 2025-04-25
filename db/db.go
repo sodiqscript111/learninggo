@@ -25,17 +25,30 @@ func InitDB() {
 }
 
 func createTable() {
-	createEventTable := `
-	CREATE TABLE IF NOT EXISTS events (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		description TEXT NOT NULL,
-		location TEXT NOT NULL,
-		datetime DATETIME NOT NULL,
-		user_id INTEGER
-	);`
 
-	_, err := DB.Exec(createEventTable)
+	createUserTable := `CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email string NOT NULL UNIQUE,
+    password string NOT NULL
+);`
+
+	_, err := DB.Exec(createUserTable)
+	if err != nil {
+		log.Fatalf("<UNK> Failed to create table: %v", err)
+	}
+
+	createEventTable := `
+CREATE TABLE IF NOT EXISTS events (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	description TEXT NOT NULL,
+	location TEXT NOT NULL,
+	datetime DATETIME NOT NULL,
+	user_id INTEGER,
+	FOREIGN KEY(user_id) REFERENCES users(id)
+);`
+
+	_, err = DB.Exec(createEventTable)
 	if err != nil {
 		log.Fatalf("❌ Failed to create events table: %v", err)
 	}

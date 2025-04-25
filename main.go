@@ -17,6 +17,8 @@ func main() {
 	server.PUT("/events/:id", editEvent)
 	server.DELETE("/events/:id", deleteEvent)
 	server.POST("/events", createEvent)
+	server.POST("/signup", createUser)
+	server.POST("/login", login)
 
 	server.Run(":8080")
 }
@@ -66,7 +68,7 @@ func createEvent(c *gin.Context) {
 	}
 
 	// Don't hardcode ID — database handles it
-	event.UserID = 1 // you can later make this dynamic if you have users
+	// you can later make this dynamic if you have users
 
 	if err := event.Save(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save event"})
@@ -76,5 +78,59 @@ func createEvent(c *gin.Context) {
 	c.JSON(http.StatusCreated, event)
 }
 func editEvent(c *gin.Context) {
+	eventId, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
 
+	var event models.Event
+	if err := c.ShouldBindJSON(&event); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	err = models.EditById(eventId, event)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Event updated successfully"})
+}
+
+func createUser(c *gin.Context) {
+	var user models.User
+
+	// Parse and validate request body
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Insert user into DB
+	user.InsertUser()
+
+	// Respond with success
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "User created successfully",
+		"user": gin.H{
+			"id":    user.Id,
+			"email": user.Email,
+		},
+	})
+}
+
+func login(c *gin.Context) {
+	var user models.User
+	err := c.ShouldBindJSON(&user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	}
+	err = user.ValidateUser()
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "User logged in"})
 }
