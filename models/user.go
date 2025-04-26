@@ -2,6 +2,7 @@ package models
 
 import (
 	"errors"
+	"fmt"
 	"learninggo/db"
 	"learninggo/utils"
 	"log"
@@ -40,18 +41,26 @@ func (u *User) InsertUser() {
 }
 
 func (u *User) ValidateUser() error {
-	query := `SELECT password FROM users WHERE email = ?`
+	query := `SELECT password, id FROM users WHERE email = ?`
 	row := db.DB.QueryRow(query, u.Email)
 
 	var retrievedPassword string
-	err := row.Scan(&retrievedPassword)
+	err := row.Scan(&retrievedPassword, &u.Id)
 	if err != nil {
+		fmt.Println("DB Error:", err)
 		return errors.New("Invalid email or password")
 	}
 
+	fmt.Println("Retrieved Hash:", retrievedPassword)
+	fmt.Println("Entered Password:", u.Password)
+	fmt.Println("User ID:", u.Id)
+
 	passwordIsValid := utils.CheckPasswordHash(u.Password, retrievedPassword)
+	fmt.Println("Password Match Result:", passwordIsValid)
+
 	if !passwordIsValid {
 		return errors.New("Invalid email or password")
 	}
+
 	return nil
 }

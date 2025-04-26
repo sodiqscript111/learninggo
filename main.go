@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"learninggo/db"
 	"learninggo/models"
+	"learninggo/utils"
 	"net/http"
 	"strconv"
 )
@@ -61,14 +62,21 @@ func deleteEvent(c *gin.Context) {
 }
 
 func createEvent(c *gin.Context) {
+	token := c.Request.Header.Get("Authorization")
+
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token provided"})
+		return
+	}
+	err := utils.VerifyToken(token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	}
 	var event models.Event
-	if err := c.ShouldBindJSON(&event); err != nil {
+	if err = c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
-
-	// Don't hardcode ID — database handles it
-	// you can later make this dynamic if you have users
 
 	if err := event.Save(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save event"})
@@ -132,5 +140,9 @@ func login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "User logged in"})
+	token, err := utils.GenerateToken(user.Email, user.Id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "User logged in", "token": token})
 }
