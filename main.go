@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
+	"learninggo/Middlewares"
 	"learninggo/db"
 	"learninggo/models"
 	"learninggo/utils"
@@ -11,13 +12,17 @@ import (
 
 func main() {
 	db.InitDB()
-
 	server := gin.Default()
+	authenticated := server.Group("/")
+
+	authenticated.Use(Middlewares.Authorize)
+	authenticated.POST("/events", createEvent)
+	authenticated.PUT("/events/:id", editEvent)
+	authenticated.DELETE("/events/:id", deleteEvent)
+	authenticated.POST("/events/:id/register", registerEvent)
+	authenticated.DELETE("/events/:id/register", deleteEvent)
 	server.GET("/events", getEvents)
 	server.GET("/events/:id", getEvent)
-	server.PUT("/events/:id", editEvent)
-	server.DELETE("/events/:id", deleteEvent)
-	server.POST("/events", createEvent)
 	server.POST("/signup", createUser)
 	server.POST("/login", login)
 
@@ -62,29 +67,17 @@ func deleteEvent(c *gin.Context) {
 }
 
 func createEvent(c *gin.Context) {
-	token := c.Request.Header.Get("Authorization")
-
-	if token == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token provided"})
-		return
-	}
-
-	// Extract user ID from the token
-	userId, err := utils.VerifyToken(token)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
 
 	// Bind event data from the request body
 	var event models.Event
-	if err = c.ShouldBindJSON(&event); err != nil {
+	if err := c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
 
+	userId := c.GetInt64("userId")
 	// Set the UserID from the extracted user ID
-	event.UserID = userId
+	event.UserID = int(userId)
 
 	// Save the event (make sure the Save method uses UserID correctly)
 	if err := event.Save(); err != nil {
@@ -156,4 +149,29 @@ func login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "User logged in", "token": token})
+}
+
+func registerEvent(c *gin.Context) {
+	userId := c.GetInt64("userId")
+	eventId, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+	event, err := models.GetEventById(eventId)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	err = event.Register(int64(userId))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Event registered successfully"})
+}
+
+func cancelRegistration(c *gin.Context) {
+
 }

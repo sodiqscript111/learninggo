@@ -25,6 +25,18 @@ func InitDB() {
 }
 
 func createTable() {
+	createRegistrationTablem := `
+CREATE TABLE IF NOT EXISTS registration (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER,
+    user_id INTEGER,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+     FOREIGN KEY(event_id) REFERENCES events(id)
+)`
+	_, err := DB.Exec(createRegistrationTablem)
+	if err != nil {
+		log.Fatalf("<UNK> Failed to create table: %v", err)
+	}
 
 	createUserTable := `CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +44,7 @@ func createTable() {
     password string NOT NULL
 );`
 
-	_, err := DB.Exec(createUserTable)
+	_, err = DB.Exec(createUserTable)
 	if err != nil {
 		log.Fatalf("<UNK> Failed to create table: %v", err)
 	}
