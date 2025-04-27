@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
+	"strings"
 	"time"
 )
 
@@ -17,9 +18,14 @@ func GenerateToken(email string, userId int) (string, error) {
 	})
 	return token.SignedString([]byte(secretKey))
 }
+func VerifyToken(tokenString string) (int, error) {
+	// Check if token has "Bearer " prefix
+	if !strings.HasPrefix(tokenString, "Bearer ") {
+		return 0, errors.New("Token format is invalid")
+	}
+	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 
-func VerifyToken(token string) error {
-	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+	parsedToken, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		_, ok := token.Method.(*jwt.SigningMethodHMAC)
 		if !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
@@ -27,20 +33,24 @@ func VerifyToken(token string) error {
 		return []byte(secretKey), nil
 	})
 	if err != nil {
-		return errors.New("Invalid token")
+		fmt.Println("Token parsing error:", err)
+		return 0, errors.New("Invalid token")
 	}
 
-	tokenIsVlid := parsedToken.Valid
-	if !tokenIsVlid {
-		return errors.New("Invalid token")
+	if !parsedToken.Valid {
+		return 0, errors.New("Invalid token")
 	}
 
-	//claims, ok := parsedToken.Claims.(jwt.MapClaims)
-	//if !ok {
-	//return errors.New("Invalid token claims")
-	//}
+	// Extract the user ID from the token claims
+	claims, ok := parsedToken.Claims.(jwt.MapClaims)
+	if !ok {
+		return 0, errors.New("Invalid token claims")
+	}
 
-	//email := claims["email"].(string)
-	//userId := claims["userId"].(int)
-	return nil
+	userId, ok := claims["userId"].(float64) // JWT stores numbers as float64
+	if !ok {
+		return 0, errors.New("User ID not found in token")
+	}
+
+	return int(userId), nil
 }

@@ -68,23 +68,34 @@ func createEvent(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token provided"})
 		return
 	}
-	err := utils.VerifyToken(token)
+
+	// Extract user ID from the token
+	userId, err := utils.VerifyToken(token)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
 	}
+
+	// Bind event data from the request body
 	var event models.Event
 	if err = c.ShouldBindJSON(&event); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
 
+	// Set the UserID from the extracted user ID
+	event.UserID = userId
+
+	// Save the event (make sure the Save method uses UserID correctly)
 	if err := event.Save(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save event"})
 		return
 	}
 
+	// Return the created event
 	c.JSON(http.StatusCreated, event)
 }
+
 func editEvent(c *gin.Context) {
 	eventId, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
