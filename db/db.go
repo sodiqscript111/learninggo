@@ -1,67 +1,117 @@
 package db
 
 import (
-	"database/sql"
 	"log"
+	"time"
 
-	_ "modernc.org/sqlite" // ✅ CGO-free SQLite driver
+	"github.com/google/uuid"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-var DB *sql.DB
+var DB *gorm.DB
 
-func InitDB() {
-	var err error
-	DB, err = sql.Open("sqlite", "C:/Users/Owner/GolandProjects/learninggo/api.db")
-
-	if err != nil {
-		log.Fatalf("❌ Failed to connect to database: %v", err)
-	}
-
-	DB.SetMaxOpenConns(10)
-	DB.SetMaxIdleConns(5)
-
-	createTable()
-	log.Println("✅ Database initialized and table ready.")
+type User struct {
+	ID        uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	Name      string
+	Email     string `gorm:"uniqueIndex"`
+	Password  string
+	Role      string `gorm:"type:text;default:'user'"`
+	CreatedAt time.Time
+	Events    []Event `gorm:"foreignKey:CreatedBy"`
 }
 
-func createTable() {
-	createRegistrationTablem := `
-CREATE TABLE IF NOT EXISTS registration (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    event_id INTEGER,
-    user_id INTEGER,
-    FOREIGN KEY(user_id) REFERENCES users(id)
-     FOREIGN KEY(event_id) REFERENCES events(id)
-)`
-	_, err := DB.Exec(createRegistrationTablem)
+type Event struct {
+	ID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	CreatedAt   time.Time
+	Title       string
+	Description string
+	Location    string
+	StartTime   time.Time
+	EndTime     time.Time
+	MaxCapacity int
+	IsPaid      bool
+	Price       float64 `gorm:"type:decimal(10,2)"`
+
+	CreatedBy uuid.UUID `gorm:"type:uuid"`
+	User      User      `gorm:"foreignKey:CreatedBy;references:ID"`
+}
+
+type Registration struct {
+	ID uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+
+	UserID uuid.UUID `gorm:"type:uuid;not null"` // foreign key field
+	User   User      `gorm:"foreignKey:UserID;references:ID"`
+
+	EventID uuid.UUID `gorm:"type:uuid;not null"` // foreign key field
+	Event   Event     `gorm:"foreignKey:EventID;references:ID"`
+
+	RegisteredAt  time.Time `gorm:"autoCreateTime"`
+	Status        string    `gorm:"type:text"`
+	TicketToken   string    `gorm:"type:text;uniqueIndex"`
+	PaymentStatus string    `gorm:"type:text"`
+}
+
+type EventLink struct {
+	ID      uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	EventID uuid.UUID `gorm:"type:uuid;not null"`
+	Event   Event     `gorm:"foreignKey:EventID;references:ID"`
+
+	Code      string `gorm:"type:text;uniqueIndex"`
+	ExpiresAt *time.Time
+	MaxUses   *int
+	UsesCount int
+
+	CreatedBy uuid.UUID `gorm:"type:uuid;not null"`
+	User      User      `gorm:"foreignKey:CreatedBy;references:ID"`
+
+	CreatedAt time.Time
+	IsActive  bool `gorm:"default:true"`
+}
+
+type Waitlist struct {
+	ID        uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null"`
+	User      User      `gorm:"foreignKey:UserID;references:ID"`
+	EventID   uuid.UUID `gorm:"type:uuid;not null"`
+	Event     Event     `gorm:"foreignKey:EventID;references:ID"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
+type Attendances struct {
+	ID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null"`
+	User        User      `gorm:"foreignKey:UserID;references:ID"`
+	EventID     uuid.UUID `gorm:"type:uuid;not null"`
+	Event       Event     `gorm:"foreignKey:EventID;references:ID"`
+	CreatedInAt time.Time `gorm:"autoCreateTime"`
+}
+
+func ConnectDatabase() {
+	dsn := "host=localhost user=postgres password=password dbname=Event port=5432 sslmode=disable"
+	var err error
+
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("<UNK> Failed to create table: %v", err)
+		log.Fatal("Failed to connect to database: ", err)
 	}
 
-	createUserTable := `CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email string NOT NULL UNIQUE,
-    password string NOT NULL
-);`
-
-	_, err = DB.Exec(createUserTable)
+	err = DB.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error
 	if err != nil {
-		log.Fatalf("<UNK> Failed to create table: %v", err)
+		log.Fatal("Failed to enable uuid-ossp extension: ", err)
 	}
 
-	createEventTable := `
-CREATE TABLE IF NOT EXISTS events (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	name TEXT NOT NULL,
-	description TEXT NOT NULL,
-	location TEXT NOT NULL,
-	datetime DATETIME NOT NULL,
-	user_id INTEGER,
-	FOREIGN KEY(user_id) REFERENCES users(id)
-);`
-
-	_, err = DB.Exec(createEventTable)
+	err = CreateTable()
 	if err != nil {
-		log.Fatalf("❌ Failed to create events table: %v", err)
+		log.Fatal("Failed to create users table: ", err)
 	}
+
+}
+
+func CreateTable() error {
+	return DB.AutoMigrate(
+		&User{}, &Event{}, &Registration{},
+		&EventLink{}, &Waitlist{}, &Attendances{},
+	)
+
 }

@@ -1,177 +1,49 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
-	"learninggo/Middlewares"
 	"learninggo/db"
 	"learninggo/models"
-	"learninggo/utils"
-	"net/http"
-	"strconv"
 )
 
 func main() {
-	db.InitDB()
+	db.ConnectDatabase()
+
 	server := gin.Default()
-	authenticated := server.Group("/")
 
-	authenticated.Use(Middlewares.Authorize)
-	authenticated.POST("/events", createEvent)
-	authenticated.PUT("/events/:id", editEvent)
-	authenticated.DELETE("/events/:id", deleteEvent)
-	authenticated.POST("/events/:id/register", registerEvent)
-	authenticated.DELETE("/events/:id/register", deleteEvent)
-	server.GET("/events", getEvents)
-	server.GET("/events/:id", getEvent)
-	server.POST("/signup", createUser)
-	server.POST("/login", login)
+	server.POST("/addUser", func(c *gin.Context) {
+		var user db.User
 
-	server.Run(":8080")
-}
+		if err := c.ShouldBindJSON(&user); err != nil {
 
-func getEvents(c *gin.Context) {
-	events, err := models.GetAllEvents()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve events"})
-		return
-	}
-	c.JSON(http.StatusOK, events)
-}
-func getEvent(c *gin.Context) {
-	eventID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve eventID"})
-		return
-	}
-	event, err := models.GetEventById(eventID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve event"})
-	}
-	c.JSON(http.StatusOK, event)
-}
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Invalid JSON provided: " + err.Error(),
+			})
+			return
+		}
 
-func deleteEvent(c *gin.Context) {
-	eventID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
-		return
-	}
+		if err := models.AddUser(user); err != nil {
 
-	err = models.DeleteById(eventID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to create user: " + err.Error(),
+			})
+			return
+		}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Event deleted successfully"})
-}
-
-func createEvent(c *gin.Context) {
-
-	// Bind event data from the request body
-	var event models.Event
-	if err := c.ShouldBindJSON(&event); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
-		return
-	}
-
-	userId := c.GetInt64("userId")
-	// Set the UserID from the extracted user ID
-	event.UserID = int(userId)
-
-	// Save the event (make sure the Save method uses UserID correctly)
-	if err := event.Save(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save event"})
-		return
-	}
-
-	// Return the created event
-	c.JSON(http.StatusCreated, event)
-}
-
-func editEvent(c *gin.Context) {
-	eventId, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
-		return
-	}
-
-	var event models.Event
-	if err := c.ShouldBindJSON(&event); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	err = models.EditById(eventId, event)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Event updated successfully"})
-}
-
-func createUser(c *gin.Context) {
-	var user models.User
-
-	// Parse and validate request body
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-		return
-	}
-
-	// Insert user into DB
-	user.InsertUser()
-
-	// Respond with success
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "User created successfully",
-		"user": gin.H{
-			"id":    user.Id,
-			"email": user.Email,
-		},
+		// On success, return 201 Created with user info (mask password in production)
+		c.JSON(http.StatusCreated, gin.H{
+			"message": "User created successfully",
+			"user": gin.H{
+				"id":    user.ID,
+				"name":  user.Name,
+				"email": user.Email,
+				"role":  user.Role,
+			},
+		})
 	})
-}
 
-func login(c *gin.Context) {
-	var user models.User
-	err := c.ShouldBindJSON(&user)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
-	}
-	err = user.ValidateUser()
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
-	token, err := utils.GenerateToken(user.Email, user.Id)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "User logged in", "token": token})
-}
-
-func registerEvent(c *gin.Context) {
-	userId := c.GetInt64("userId")
-	eventId, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
-		return
-	}
-	event, err := models.GetEventById(eventId)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	err = event.Register(int64(userId))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Event registered successfully"})
-}
-
-func cancelRegistration(c *gin.Context) {
-
+	// Start server on port 8080
+	server.Run(":8080")
 }
