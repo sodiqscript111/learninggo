@@ -12,79 +12,74 @@ import (
 var DB *gorm.DB
 
 type User struct {
-	ID        uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	Name      string
-	Email     string `gorm:"uniqueIndex"`
-	Password  string
-	Role      string `gorm:"type:text;default:'user'"`
-	CreatedAt time.Time
-	Events    []Event `gorm:"foreignKey:CreatedBy"`
+	ID        uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `gorm:"uniqueIndex" json:"email"`
+	Password  string    `json:"password"`
+	Role      string    `gorm:"type:text;default:'user'" json:"role"`
+	CreatedAt time.Time `json:"createdAt"`
+	Events    []Event   `gorm:"foreignKey:CreatedBy" json:"events,omitempty"`
 }
 
 type Event struct {
-	ID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	CreatedAt   time.Time
-	Title       string
-	Description string
-	Location    string
-	StartTime   time.Time
-	EndTime     time.Time
-	MaxCapacity int
-	IsPaid      bool
-	Price       float64 `gorm:"type:decimal(10,2)"`
+	ID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	CreatedAt   time.Time `json:"createdAt"`
+	Title       string    `json:"title" binding:"required"`
+	Description string    `json:"description"`
+	Location    string    `json:"location"`
+	StartTime   time.Time `json:"startTime"`
+	EndTime     time.Time `json:"endTime"`
+	MaxCapacity int       `json:"maxCapacity"`
+	IsPaid      bool      `json:"isPaid"`
+	Price       float64   `gorm:"type:decimal(10,2)" json:"price"`
 
-	CreatedBy uuid.UUID `gorm:"type:uuid"`
-	User      User      `gorm:"foreignKey:CreatedBy;references:ID"`
+	CreatedBy uuid.UUID `gorm:"type:uuid;not null" json:"createdBy"`
+	User      User      `gorm:"foreignKey:CreatedBy;references:ID" json:"-"`
 }
 
 type Registration struct {
-	ID uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-
-	UserID uuid.UUID `gorm:"type:uuid;not null"` // foreign key field
-	User   User      `gorm:"foreignKey:UserID;references:ID"`
-
-	EventID uuid.UUID `gorm:"type:uuid;not null"` // foreign key field
-	Event   Event     `gorm:"foreignKey:EventID;references:ID"`
-
-	RegisteredAt  time.Time `gorm:"autoCreateTime"`
-	Status        string    `gorm:"type:text"`
-	TicketToken   string    `gorm:"type:text;uniqueIndex"`
-	PaymentStatus string    `gorm:"type:text"`
+	ID            uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	UserID        uuid.UUID `gorm:"type:uuid;not null" json:"userId"`
+	User          User      `gorm:"foreignKey:UserID;references:ID" json:"-"`
+	EventID       uuid.UUID `gorm:"type:uuid;not null" json:"eventId"`
+	Event         Event     `gorm:"foreignKey:EventID;references:ID" json:"-"`
+	RegisteredAt  time.Time `gorm:"autoCreateTime" json:"registeredAt"`
+	Status        string    `gorm:"type:text" json:"status"`
+	TicketToken   string    `gorm:"type:text;uniqueIndex" json:"ticketToken"`
+	PaymentStatus string    `gorm:"type:text" json:"paymentStatus"`
 }
 
 type EventLink struct {
-	ID      uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	EventID uuid.UUID `gorm:"type:uuid;not null"`
-	Event   Event     `gorm:"foreignKey:EventID;references:ID"`
+	ID        uuid.UUID  `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	EventID   uuid.UUID  `gorm:"type:uuid;not null" json:"eventId"`
+	Event     Event      `gorm:"foreignKey:EventID;references:ID" json:"-"`
+	Code      string     `gorm:"type:text;uniqueIndex" json:"code"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	MaxUses   *int       `json:"maxUses,omitempty"`
+	UsesCount int        `json:"usesCount"`
 
-	Code      string `gorm:"type:text;uniqueIndex"`
-	ExpiresAt *time.Time
-	MaxUses   *int
-	UsesCount int
-
-	CreatedBy uuid.UUID `gorm:"type:uuid;not null"`
-	User      User      `gorm:"foreignKey:CreatedBy;references:ID"`
-
-	CreatedAt time.Time
-	IsActive  bool `gorm:"default:true"`
+	CreatedBy uuid.UUID `gorm:"type:uuid;not null" json:"createdBy"`
+	User      User      `gorm:"foreignKey:CreatedBy;references:ID" json:"-"`
+	CreatedAt time.Time `json:"createdAt"`
+	IsActive  bool      `gorm:"default:true" json:"isActive"`
 }
 
 type Waitlist struct {
-	ID        uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null"`
-	User      User      `gorm:"foreignKey:UserID;references:ID"`
-	EventID   uuid.UUID `gorm:"type:uuid;not null"`
-	Event     Event     `gorm:"foreignKey:EventID;references:ID"`
-	CreatedAt time.Time `gorm:"autoCreateTime"`
+	ID        uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	UserID    uuid.UUID `gorm:"type:uuid;not null" json:"userId"`
+	User      User      `gorm:"foreignKey:UserID;references:ID" json:"-"`
+	EventID   uuid.UUID `gorm:"type:uuid;not null" json:"eventId"`
+	Event     Event     `gorm:"foreignKey:EventID;references:ID" json:"-"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
 }
 
 type Attendances struct {
-	ID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
-	UserID      uuid.UUID `gorm:"type:uuid;not null"`
-	User        User      `gorm:"foreignKey:UserID;references:ID"`
-	EventID     uuid.UUID `gorm:"type:uuid;not null"`
-	Event       Event     `gorm:"foreignKey:EventID;references:ID"`
-	CreatedInAt time.Time `gorm:"autoCreateTime"`
+	ID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null" json:"userId"`
+	User        User      `gorm:"foreignKey:UserID;references:ID" json:"-"`
+	EventID     uuid.UUID `gorm:"type:uuid;not null" json:"eventId"`
+	Event       Event     `gorm:"foreignKey:EventID;references:ID" json:"-"`
+	CreatedInAt time.Time `gorm:"autoCreateTime" json:"createdInAt"`
 }
 
 func ConnectDatabase() {
