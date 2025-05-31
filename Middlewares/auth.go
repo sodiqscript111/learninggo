@@ -6,20 +6,23 @@ import (
 	"net/http"
 )
 
-func Authorize(c *gin.Context) {
-	token := c.Request.Header.Get("Authorization")
+func Authorize() gin.HandlerFunc {
 
-	if token == "" {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "No token provided"})
-		return
+	return func(c *gin.Context) {
+		token := c.Request.Header.Get("Authorization")
+
+		if token == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "No token provided"})
+			return
+		}
+
+		userId, err := utils.VerifyToken(token)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+		c.Set("userId", userId)
+		c.Next()
 	}
 
-	// Extract user ID from the token
-	userId, err := utils.VerifyToken(token)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
-	c.Set("userId", userId)
-	c.Next()
 }

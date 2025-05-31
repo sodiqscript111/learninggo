@@ -6,13 +6,17 @@ import (
 	"gorm.io/gorm"
 	"learninggo/db"
 	"learninggo/models"
+	"learninggo/utils"
 	"net/http"
+	"time"
 )
 
 func main() {
 	db.ConnectDatabase()
 
 	server := gin.Default()
+
+	server.DELETE("/event/:id", DeleteEvent)
 
 	server.POST("/register", AddUser)
 	server.POST("/login", ValidateUser)
@@ -21,8 +25,16 @@ func main() {
 	server.POST("/createevent", AddEvents)
 	server.GET("/events", GetEvents)
 	server.GET("/event/:id", GetEvent)
+	server.POST("/events/:id/register", AddUserForEvent)
+	server.GET("/events/:id/registrations", GetAllRegisters)
+	server.GET("/events/:id/registration", GetRegistersWithUserId)
+	server.POST("/event/:id/link", CreateEventLink)
+	server.POST("/events/register/:code", RegisterHandler)
+	server.GET("/event/:id/link", GetAllEventLinks)
+
+	server.PUT("/event/:id/link", DeleteEventLink)
 	server.Run(":8080")
-	server.DELETE("/event/:id", DeleteEvent)
+
 }
 
 func AddUser(c *gin.Context) {
@@ -188,4 +200,180 @@ func DeleteEvent(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Event deleted successfully",
 	})
+}
+
+type RegistrationInput struct {
+	UserID        string `json:"userId" binding:"required,uuid"`
+	Status        string `json:"status"`
+	PaymentStatus string `json:"payment_status"`
+}
+
+func AddUserForEvent(c *gin.Context) {
+	eventIDParam := c.Param("id")
+	eventID, err := uuid.Parse(eventIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
+		return
+	}
+
+	var input RegistrationInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON provided: " + err.Error()})
+		return
+	}
+
+	userID, err := uuid.Parse(input.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	registration := db.Registration{
+		UserID:        userID,
+		EventID:       eventID,
+		Status:        input.Status,
+		PaymentStatus: input.PaymentStatus,
+		RegisteredAt:  time.Now(),
+		TicketToken:   utils.GenerateTicketToken(),
+	}
+
+	err = models.CreateRegistration(registration)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create registration: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":      "Registration created successfully",
+		"registration": registration,
+	})
+}
+
+func GetAllRegisters(c *gin.Context) {
+	eventIDParam := c.Param("id")
+	eventID, err := uuid.Parse(eventIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
+		return
+	}
+	registers, err := models.GetAllRegistrations(eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"registrations": registers,
+	})
+}
+
+func GetRegistersWithUserId(c *gin.Context) {
+	userIDParam := c.Param("id")
+	userID, err := uuid.Parse(userIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
+		return
+	}
+	registers, err := models.GetAllRegistrationWithUserId(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Failed to get all registrations"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"registrations": registers,
+		"message":       "Registration created successfully",
+	})
+}
+
+type eventlinkInput struct {
+	UserID    string     `json:"userId" binding:"required,uuid"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	MaxUses   *int       `json:"max_uses" binding:"required"`
+}
+
+func CreateEventLink(c *gin.Context) {
+	eventIDParam := c.Param("id")
+	eventID, err := uuid.Parse(eventIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
+	}
+
+	code := utils.GenerateCode()
+	var input eventlinkInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, err := uuid.Parse(input.UserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+	link := db.EventLink{
+		Code:      code,
+		ExpiresAt: input.ExpiresAt,
+		MaxUses:   input.MaxUses,
+		CreatedBy: userID,
+		EventID:   eventID,
+	}
+	err = models.AddEventLink(link)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Event link created successfully",
+	})
+	return
+}
+func GetAllEventLinks(c *gin.Context) {
+	eventIDParam := c.Param("id")
+	eventID, err := uuid.Parse(eventIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
+		return
+	}
+	eventLink, err := models.GetEventLink(eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Event link created successfully",
+		"Events":  eventLink,
+	})
+}
+
+func DeleteEventLink(c *gin.Context) {
+	eventIDParam := c.Param("id")
+	eventID, err := uuid.Parse(eventIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
+	}
+	err = models.DeleteEventLink(eventID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Event link deleted successfully",
+	})
+}
+
+func RegisterHandler(c *gin.Context) {
+	code := c.Param("code")
+
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID := userIDVal.(uuid.UUID)
+
+	err := models.AddRegistration(code, userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Registered successfully"})
 }
