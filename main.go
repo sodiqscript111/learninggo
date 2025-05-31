@@ -348,7 +348,7 @@ func DeleteEventLink(c *gin.Context) {
 	eventIDParam := c.Param("id")
 	eventID, err := uuid.Parse(eventIDParam)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid eventID format"})
 	}
 	err = models.DeleteEventLink(eventID)
 	if err != nil {
