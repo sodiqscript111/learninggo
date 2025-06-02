@@ -13,7 +13,7 @@ import (
 
 func main() {
 	db.ConnectDatabase()
-
+	db.ConnectRedis()
 	server := gin.Default()
 
 	server.DELETE("/event/:id", DeleteEvent)
@@ -273,7 +273,7 @@ func GetRegistersWithUserId(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
 		return
 	}
-	registers, err := models.GetAllRegistrationWithUserId(userID)
+	registers, err := models.GetAllRegistrationByUserId(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Failed to get all registrations"})
 		return
