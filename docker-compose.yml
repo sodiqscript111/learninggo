@@ -1,53 +1,56 @@
+version: '3.9'
 
-  version: '3.9'
+services:
+  app:
+    image: eventmanagementapp:3.9
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    networks:
+      - event-network
 
-  services:
-    app:
-      image: eventmanagementapp:3.9
-      build: .
-      ports:
-        - "8080:8080"
-      depends_on:
-        redis:
-          condition: service_healthy
-        db:
-          condition: service_healthy
-      networks:
-        - event-network
+  redis:
+    image: redis:latest
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - event-network
 
-    redis:
-      image: redis:latest
-      ports:
-        - "6380:6379"
-      healthcheck:
-        test: ["CMD", "redis-cli", "ping"]
-        interval: 5s
-        timeout: 3s
-        retries: 5
-      networks:
-        - event-network
+  db:
+    image: postgres:17
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: Event
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d Event"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - event-network
 
-    db:
-      image: postgres:17
-      restart: always
-      ports:
-        - "5432:5432"
-      volumes:
-        - postgres_data:/var/lib/postgresql/data
-        - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-        - ./postgresql.conf:/etc/postgresql/postgresql.conf
-      command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
-      healthcheck:
-        test: ["CMD-SHELL", "pg_isready -U postgres -d Event"]
-        interval: 5s
-        timeout: 3s
-        retries: 5
-      networks:
-        - event-network
+volumes:
+  postgres_data:
 
-  volumes:
-    postgres_data:
-
-  networks:
-    event-network:
-      driver: bridge
+networks:
+  event-network:
+    driver: bridge
