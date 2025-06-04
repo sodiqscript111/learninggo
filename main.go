@@ -7,17 +7,20 @@ import (
 	"learninggo/db"
 	"learninggo/models"
 	"learninggo/utils"
+	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
 func main() {
-	db.ConnectDatabase()
+
 	db.ConnectRedis()
+
+	db.ConnectDatabase()
+
 	server := gin.Default()
-
 	server.DELETE("/event/:id", DeleteEvent)
-
 	server.POST("/register", AddUser)
 	server.POST("/login", ValidateUser)
 	server.GET("/user/:id", GetUser)
@@ -33,6 +36,7 @@ func main() {
 	server.GET("/event/:id/link", GetAllEventLinks)
 
 	server.PUT("/event/:id/link", DeleteEventLink)
+
 	server.Run(":8080")
 
 }
@@ -152,16 +156,40 @@ func AddEvents(c *gin.Context) {
 		"event":   event,
 	})
 }
-
 func GetEvents(c *gin.Context) {
-	events, err := models.GetAllEvents()
+
+	pageStr := c.Query("page")
+	limitStr := c.Query("limit")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		limit = 20
+	}
+
+	// Cap limit to prevent excessive load
+	if limit > 100 {
+		limit = 100
+	}
+
+	events, err := models.GetAllEvents(page, limit)
 	if err != nil {
+		log.Printf("GetAllEvents error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"events": events})
-}
 
+	c.Header("Cache-Control", "public, max-age=180")
+	c.JSON(http.StatusOK, gin.H{
+		"events": events,
+		"page":   page,
+		"limit":  limit,
+	})
+}
 func GetEvent(c *gin.Context) {
 	eventIDParam := c.Param("id")
 
@@ -273,7 +301,7 @@ func GetRegistersWithUserId(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID format"})
 		return
 	}
-	registers, err := models.GetAllRegistrationByUserId(userID)
+	registers, err := models.GetRegistrationByUserId(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "Failed to get all registrations"})
 		return
