@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"learninggo/db"
+	"learninggo/listener"
 	"learninggo/models"
 	"learninggo/utils"
 	"log"
@@ -18,7 +21,7 @@ func main() {
 	db.ConnectRedis()
 
 	db.ConnectDatabase()
-
+	go listener.ListenForUserEvents()
 	server := gin.Default()
 	server.DELETE("/event/:id", DeleteEvent)
 	server.POST("/register", AddUser)
@@ -69,6 +72,14 @@ func AddUser(c *gin.Context) {
 			"role":  user.Role,
 		},
 	})
+
+	event := map[string]string{
+		"type":  "user",
+		"email": user.Email,
+		"name":  user.Name,
+	}
+	json, _ := json.Marshal(event)
+	db.RedisClient.Publish(context.Background(), "userEvent", json)
 }
 
 func ValidateUser(c *gin.Context) {

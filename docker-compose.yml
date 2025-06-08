@@ -2,29 +2,23 @@ version: '3.9'
 
 services:
   app:
-    image: eventmanagementapp:3.9
+    image: eventmanagementapp:latest
     build: .
     ports:
       - "8080:8080"
     depends_on:
-      redis:
-        condition: service_healthy
       db:
         condition: service_healthy
-    networks:
-      - event-network
-
-  redis:
-    image: redis:latest
-    ports:
-      - "6380:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    networks:
-      - event-network
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_ADDRESS: redis:6379
+      REDIS_PASSWORD: ""
+      DB_HOST: db
+      DB_NAME: Event
+      DB_USER: postgres
+      DB_PASSWORD: password
+      RESEND_API_KEY: re_aENqruXp_9eoxbdzctoZm6aiaLXTC4QhN
 
   db:
     image: postgres:17
@@ -38,19 +32,21 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./postgresql.conf:/etc/postgresql/postgresql.conf
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d Event"]
       interval: 5s
       timeout: 3s
       retries: 5
-    networks:
-      - event-network
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   postgres_data:
-
-networks:
-  event-network:
-    driver: bridge

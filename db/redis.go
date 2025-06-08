@@ -13,7 +13,7 @@ var Ctx = context.Background()
 func ConnectRedis() {
 	RedisClient = redis.NewClient(&redis.Options{
 		Addr:         "redis:6379",
-		Password:     "Sodiq111",
+		Password:     "",
 		PoolSize:     50,              // Reduced for local setup
 		MinIdleConns: 10,              // Reduced
 		PoolTimeout:  3 * time.Second, // Reduced for faster failure

@@ -84,7 +84,7 @@ type Attendances struct {
 }
 
 func ConnectDatabase() {
-	dsn := "host=localhost user=postgres password=password dbname=Event port=5432 sslmode=disable"
+	dsn := "host=db user=postgres password=password dbname=Event port=5432 sslmode=disable"
 	var err error
 
 	dbConfig := &gorm.Config{
